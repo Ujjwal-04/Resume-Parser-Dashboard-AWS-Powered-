@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Resume Uploader + Dashboard</title>
+</head>
+<body>
+  <h2>Upload Resume PDF</h2>
+  <input type="file" id="resumeFile" />
+  <button onclick="uploadResume()">Upload</button>
+  <p id="status"></p>
+
+  <hr>
+
+  <h2>Parsed Resumes</h2>
+  <table id="resumeTable">
+    <thead>
+      <tr>
+        <th>Name</th><th>Email</th><th>Skills</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const uploadApi = "https://q0m828sgk1.execute-api.us-east-1.amazonaws.com/resumeuploadurl";
+    const getResumesApi = "https://skrjl0ygz5.execute-api.us-east-1.amazonaws.com/get-resume";
+
+    async function uploadResume() {
+      const file = document.getElementById("resumeFile").files[0];
+      if (!file) return alert("No file selected");
+
+      try {
+        const res = await fetch(uploadApi, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: file.name })
+        });
+
+        const { uploadUrl } = await res.json();
+        document.getElementById("status").textContent = "Uploading...";
+
+        await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": "application/pdf" },
+          body: file
+        });
+
+        document.getElementById("status").textContent = "✅ Uploaded!";
+        setTimeout(loadResumes, 5000);
+      } catch (err) {
+        console.error("Upload failed:", err);
+        document.getElementById("status").textContent = "❌ Upload failed.";
+      }
+    }
+
+    async function loadResumes() {
+      try {
+        const res = await fetch(getResumesApi);
+        const data = await res.json();
+
+        if (!Array.isArray(data)) {
+          console.error("API did not return an array:", data);
+          document.getElementById("status").textContent = "❌ Failed to load resumes.";
+          return;
+        }
+
+        const tbody = document.querySelector("#resumeTable tbody");
+        tbody.innerHTML = "";
+
+        data.forEach(r => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${r.name || "-"}</td>
+            <td>${r.email || "-"}</td>
+            <td>${(r.skills || []).join(", ")}</td>
+            <td>${r.status || "Not Set"}</td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        document.getElementById("status").textContent =
+          data.length === 0 ? "📭 No resumes found." : `✅ Loaded ${data.length} resumes.`;
+
+      } catch (err) {
+        console.error("Fetch error:", err);
+        document.getElementById("status").textContent = "❌ Server error while loading resumes.";
+      }
+    }
+
+    window.onload = loadResumes;
+  </script>
+</body>
+</html>
